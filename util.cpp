@@ -33,6 +33,13 @@ Vector3 get_random_vector(float min, float max) {
     return (Vector3){ x, y, z };
 }
 
+Color get_random_color() {
+    unsigned char rand_r = (float)rand()/(float)RAND_MAX * 255;
+    unsigned char rand_g = (float)rand()/(float)RAND_MAX * 255;
+    unsigned char rand_b = (float)rand()/(float)RAND_MAX * 255;
+    return (Color){rand_r, rand_g, rand_b, 255};
+}
+
 void print_matrix(Matrix mat) {
     printf("%f %f %f %f\n", mat.m0, mat.m4, mat.m8, mat.m12);
     printf("%f %f %f %f\n", mat.m1, mat.m5, mat.m9, mat.m13);

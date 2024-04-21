@@ -12,6 +12,8 @@ Vector2 get_2d_screen_vec(Vector3& vec);
 
 Vector3 get_random_vector(float min, float max);
 
+Color get_random_color();
+
 void print_matrix(Matrix mat);
 
 Matrix get_project_matrix(int screenWidth, int screenHeight, float fovy, float zNear, float zFar);

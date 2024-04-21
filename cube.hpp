@@ -8,8 +8,16 @@ private:
     Vector3 center;
     float side_size;
     Vector3 verticies[8];
+    int triangles[12*3];
+    Color colors[12];
 
     bool z_in_range(float z);
+
+    void set_verticies(Vector3 center);
+
+    void set_triangles();
+
+    void set_colors();
 
 public:
     Cube(Vector3 center, float side_size);
@@ -17,8 +25,6 @@ public:
     void rotate(Quaternion& q);
 
     void draw(Matrix& project_matrix);
-
-    void set_center(Vector3 center);
 
     Vector3 get_center();
 
