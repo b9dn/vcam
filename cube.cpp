@@ -23,7 +23,7 @@ void Cube::rotate(Quaternion& q) {
 
 void Cube::draw(Matrix& project_matrix) {
     Vector3 projected_verticies[8] = {0};
-    Vector2 projected_screen_verticies[8] = {8};
+    Vector2 projected_screen_verticies[8] = {0};
     
     for(int i = 0; i < 8; i++) {
         projected_verticies[i] = multiply_mv(project_matrix, verticies[i]);
@@ -33,7 +33,7 @@ void Cube::draw(Matrix& project_matrix) {
     for(int i = 0; i < 36; i+=3) {
         if(z_in_range(projected_verticies[triangles[i]].z) && z_in_range(projected_verticies[triangles[i+1]].z && z_in_range(projected_verticies[triangles[i+2]].z)))
             DrawTriangle(projected_screen_verticies[triangles[i]], projected_screen_verticies[triangles[i+1]], projected_screen_verticies[triangles[i+2]], colors[i/3]);
-        // double draw not ommit clock wise triangle drawing
+        // double draw to ommit clock wise triangle drawing
         if(z_in_range(projected_verticies[triangles[35-i]].z) && z_in_range(projected_verticies[triangles[35-i-1]].z && z_in_range(projected_verticies[triangles[35-i-2]].z)))
             DrawTriangle(projected_screen_verticies[triangles[35-i]], projected_screen_verticies[triangles[35-i-1]], projected_screen_verticies[triangles[35-i-2]], colors[12-i/3]);
         /* if(z_in_range(projected_verticies[i].z) && z_in_range(projected_verticies[(i+1) % 4].z)) */

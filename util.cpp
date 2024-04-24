@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <cstdio>
 
-Vector3 multiply_mv(Matrix &mat, Vector3 &vec) {
+Vector3 multiply_mv(const Matrix &mat, const Vector3 &vec) {
     Vector3 ret;
     Vector4 result;
 
@@ -46,6 +46,14 @@ void print_matrix(Matrix mat) {
     printf("%f %f %f %f\n", mat.m2, mat.m6, mat.m10, mat.m14);
     printf("%f %f %f %f\n", mat.m3, mat.m7, mat.m11, mat.m15);
     printf("\n");
+}
+
+bool z_in_range(float z) {
+    return z > 0 && z <= 1;
+}
+
+float point_in_plane_equasion(Vector3 point, Vector4 plane) {
+    return plane.x * point.x + plane.y * point.y + plane.z * point.z + plane.w;
 }
 
 Matrix get_project_matrix(int screenWidth, int screenHeight, float fovy, float zNear, float zFar) {
