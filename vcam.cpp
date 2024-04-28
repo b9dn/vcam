@@ -31,11 +31,13 @@ class Triangle {
 public:
     Vector3 verticies[3];
     Color color;
+    bool visible;
     Triangle(Vector3 v1, Vector3 v2, Vector3 v3, Color color) {
         this->verticies[0] = v1;
         this->verticies[1] = v2;
         this->verticies[2] = v3;
         this->color = color;
+        this->visible = true;
     }
 
     Triangle(Vector3 v1, Vector3 v2, Vector3 v3) {
@@ -43,15 +45,16 @@ public:
         this->verticies[1] = v2;
         this->verticies[2] = v3;
         this->color = get_random_color();
+        this->visible = true;
     }
 
     // does triangle plane cross given triangle
     // 1 if in front, 0 if they cross, -1 if behind
     int plane_cross_triangle(Triangle* triangle) {
-        auto v1 = Vector3Subtract(triangle->verticies[0], triangle->verticies[1]);
-        auto v2 = Vector3Subtract(triangle->verticies[0], triangle->verticies[2]);
+        auto v1 = Vector3Subtract(verticies[0], verticies[1]);
+        auto v2 = Vector3Subtract(verticies[0], verticies[2]);
         auto normal = Vector3CrossProduct(v1, v2);
-        auto point = triangle->verticies[0];
+        auto point = verticies[0];
         auto d = -normal.x * point.x -normal.y * point.y - normal.z * point.z;
 
         Vector4 plane = (Vector4){normal.x, normal.y, normal.z, d};
@@ -66,6 +69,15 @@ public:
         return 0;
     }
 
+    Vector4 to_plane() {
+        auto v1 = Vector3Subtract(verticies[0], verticies[1]);
+        auto v2 = Vector3Subtract(verticies[0], verticies[2]);
+        auto normal = Vector3CrossProduct(v1, v2);
+        auto point = verticies[0];
+        auto d = -normal.x * point.x -normal.y * point.y - normal.z * point.z;
+
+        return (Vector4){normal.x, normal.y, normal.z, d};
+    }
 
     void rotate(Quaternion& q) {
         for(int i = 0; i < 3; i++)
@@ -78,6 +90,9 @@ public:
     }
 
     void draw(const Vcam& camera) {
+        if(!this->visible)
+            return;
+
         Vector3 projected_verticies[3] = {0};
         Vector2 projected_screen_verticies[3] = {0};
         
@@ -122,42 +137,121 @@ public:
 class BSPTree {
 private:
     BSPNode* root;
-    int size;
+
+    Vector3 line_intersection_with_plane(Vector3 p1, Vector3 p2, Vector4 plane) {
+        float denominator = plane.x * (p2.x - p1.x) + 
+                        plane.y * (p2.y - p1.y) + 
+                        plane.z * (p2.z - p1.z);
+
+        float param = -((plane.x * p1.x + plane.y * p1.y + plane.z * p1.z + plane.w) / denominator);
+
+        float intersection_x = p1.x + param * (p2.x - p1.x);
+        float intersection_y = p1.y + param * (p2.y - p1.y);
+        float intersection_z = p1.z + param * (p2.z - p1.z);
+
+        return {intersection_x, intersection_y, intersection_z};
+    }
 
     // split triangle using plane
     // returns one of made front or behind triangles
-    Triangle* split(Triangle* t, std::vector<Triangle*>& triangles, bool return_front) { ///////////////////
-        return NULL;
+    void split(Triangle* t, Vector4 plane, std::vector<Triangle*>& triangles) {
+        triangles.erase(std::remove(triangles.begin(), triangles.end(), t), triangles.end());
+        float sign_p1 = point_in_plane_equasion(t->verticies[0], plane);
+        float sign_p2 = point_in_plane_equasion(t->verticies[1], plane);
+        float sign_p3 = point_in_plane_equasion(t->verticies[2], plane);
+
+        Vector3 one_side;
+        Vector3 other_side1;
+        Vector3 other_side2;
+        Vector3 intersection1;
+        Vector3 intersection2;
+
+        // split on 2 triangles
+        if(sign_p1 == 0) {
+            intersection1 = line_intersection_with_plane(t->verticies[1], t->verticies[2], plane);
+            Triangle* t1new = new Triangle(t->verticies[0], intersection1, t->verticies[1], t->color);
+            Triangle* t2new = new Triangle(t->verticies[0], intersection1, t->verticies[2], t->color);
+            triangles.push_back(t1new);
+            triangles.push_back(t2new);
+            return;
+        }
+        if(sign_p2 == 0) {
+            intersection1 = line_intersection_with_plane(t->verticies[0], t->verticies[2], plane);
+            Triangle* t1new = new Triangle(t->verticies[1], intersection1, t->verticies[0], t->color);
+            Triangle* t2new = new Triangle(t->verticies[1], intersection1, t->verticies[2], t->color);
+            triangles.push_back(t1new);
+            triangles.push_back(t2new);
+            return;
+        }
+        if(sign_p3 == 0) {
+            intersection1 = line_intersection_with_plane(t->verticies[0], t->verticies[1], plane);
+            Triangle* t1new = new Triangle(t->verticies[2], intersection1, t->verticies[0], t->color);
+            Triangle* t2new = new Triangle(t->verticies[2], intersection1, t->verticies[1], t->color);
+            triangles.push_back(t1new);
+            triangles.push_back(t2new);
+            return;
+        }
+        // split on 3 triangles
+        else if((sign_p1 > 0 && sign_p2 > 0) || (sign_p1 < 0 && sign_p2 < 0)) {
+            one_side = t->verticies[2];
+            other_side1 = t->verticies[0];
+            other_side2 = t->verticies[1];
+        }
+        else if((sign_p2 > 0 && sign_p3 > 0) || (sign_p2 < 0 && sign_p3 < 0)) {
+            one_side = t->verticies[0];
+            other_side1 = t->verticies[1];
+            other_side2 = t->verticies[2];
+        }
+        else {
+            one_side = t->verticies[1];
+            other_side1 = t->verticies[0];
+            other_side2 = t->verticies[2];
+        }
+
+        intersection1 = line_intersection_with_plane(one_side, other_side1, plane);
+        intersection2 = line_intersection_with_plane(one_side, other_side2, plane);
+
+        Triangle* t1new = new Triangle(one_side, intersection1, intersection2, t->color);
+        Triangle* t2new = new Triangle(other_side1, intersection1, intersection2, t->color);
+        Triangle* t3new = new Triangle(intersection2, other_side1, other_side2, t->color);
+
+        triangles.push_back(t1new);
+        triangles.push_back(t2new);
+        triangles.push_back(t3new);
     }
 
     Triangle* find_front(Triangle* triangle, std::vector<Triangle*>& triangles) {
         int i = 0;
-        while(i++ < triangles.size()) {
-            auto t = triangles[i];
-            auto test_result = triangle->plane_cross_triangle(t);
+        Triangle* t = NULL;
+        while(i < triangles.size()) {
+            auto test_result = triangle->plane_cross_triangle(triangles[i]);
             if(test_result == 1) {
-                return t;
+                t = triangles[i];
             }
-            else if(test_result == 0) {
-                return split(t, triangles, true);
+            else if(test_result == 0 && t == NULL) {
+                split(triangles[i], triangle->to_plane(), triangles);
+                continue;
             }
+            i++;
         }
-        return NULL;
+        return t;
     }
 
     Triangle* find_behind(Triangle* triangle, std::vector<Triangle*>& triangles) {
         int i = 0;
-        while(i++ < triangles.size()) {
-            auto t = triangles[i];
-            auto test_result = triangle->plane_cross_triangle(t);
-            if(test_result == -1) {
-                return t;
+        Triangle* t = NULL;
+        while(i < triangles.size()) {
+            auto test_result = triangle->plane_cross_triangle(triangles[i]);
+            if(test_result == -1 && t == NULL) {
+                t = triangles[i];
             }
             else if(test_result == 0) {
-                return split(t, triangles, false);
+                split(triangles[i], triangle->to_plane(), triangles);
+                continue;
             }
+            i++;
         }
-        return NULL;
+        return t;
     }
 
     void make_bsp_tree(BSPNode* node, std::vector<Triangle*>& triangles) {
@@ -197,14 +291,27 @@ private:
         }
     }
 
+    void restore_triangles(std::vector<Triangle*>& triangles) {
+        restore_triangles(root, triangles);
+    }
+    
+    void restore_triangles(BSPNode* node, std::vector<Triangle*>& triangles) {
+        if(node == NULL)
+            return;
+
+        triangles.push_back(node->triangle);
+        restore_triangles(node->behind, triangles);
+        restore_triangles(node->front, triangles);
+    }
+
 public:
-    BSPTree(std::vector<Triangle*> triangles) {
-        this->size = triangles.size();
+    BSPTree(std::vector<Triangle*>& triangles) {
         if(triangles.size() > 0) {
             root = new BSPNode(triangles[0]);
             triangles.erase(triangles.begin());
         }
         make_bsp_tree(root, triangles);
+        restore_triangles(triangles);
     }
 
     void draw(Vcam camera) {
@@ -258,7 +365,8 @@ std::vector<Cube> init_cubes() {
 std::vector<Triangle*> init_triangles() {
     return std::vector<Triangle*> {
         new Triangle({0.0f, 0.0f, -10.0f}, {10.0f, 10.0f, -10.0f}, {10.0f, 0.0f, -10.0f}, BLACK),
-        new Triangle({-5.0f, -5.0f, -20.0f}, {10.0f, 10.0f, -20.0f}, {10.0f, 0.0f, -20.0f}),
+        /* new Triangle({-5.0f, -5.0f, -20.0f}, {10.0f, 10.0f, -20.0f}, {10.0f, 0.0f, -20.0f}), */
+        new Triangle({0.0f, 0.0f, -5.0f}, {10.0f, 10.0f, -10.0f}, {10.0f, 0.0f, -30.0f}, RED),
     };
 }
 
@@ -271,6 +379,7 @@ int main(void) {
     float side_size = 1.0f;
     /* int cubes_n = 9; */
     std::vector<Triangle*> triangles = init_triangles();
+    int invisible_indx = -1;
 
     /* for(int i = 0; i < cubes_n; i++) { */
     /*     Vector3 cube_center = get_random_vector(-10.0f, 10.0f); */
@@ -429,6 +538,13 @@ int main(void) {
             printf("break\n");
             printf("break\n");
         }
+        if(IsKeyPressed(KEY_V)) {
+            if(invisible_indx != -1)
+                triangles[invisible_indx]->visible = true;
+            invisible_indx = invisible_indx == triangles.size() - 1 ? -1 : invisible_indx + 1;
+            if(invisible_indx != -1)
+                triangles[invisible_indx]->visible = false;
+        }
 
         if(IsKeyDown(KEY_KP_ADD)) {
             if(fovy > 1.0f)
@@ -472,6 +588,8 @@ int main(void) {
         DrawText(TextFormat("Camera x pos %f", camera.camera_pos.x), 20, 360, 20, BLACK);
         DrawText(TextFormat("Camera y pos %f", camera.camera_pos.y), 20, 380, 20, BLACK);
         DrawText(TextFormat("Camera z pos %f", camera.camera_pos.z), 20, 400, 20, BLACK);
+
+        DrawText(TextFormat("Invisible index %d", invisible_indx), 20, 440, 20, BLACK);
 
         EndDrawing();
         //----------------------------------------------------------------------------------
