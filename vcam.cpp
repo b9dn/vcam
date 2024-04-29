@@ -153,7 +153,6 @@ private:
     }
 
     // split triangle using plane
-    // returns one of made front or behind triangles
     void split(Triangle* t, Vector4 plane, std::vector<Triangle*>& triangles) {
         triangles.erase(std::remove(triangles.begin(), triangles.end(), t), triangles.end());
         float sign_p1 = point_in_plane_equasion(t->verticies[0], plane);
@@ -220,58 +219,58 @@ private:
         triangles.push_back(t3new);
     }
 
-    Triangle* find_front(Triangle* triangle, std::vector<Triangle*>& triangles) {
-        int i = 0;
-        Triangle* t = NULL;
-        while(i < triangles.size()) {
-            auto test_result = triangle->plane_cross_triangle(triangles[i]);
-            if(test_result == 1) {
-                t = triangles[i];
-            }
-            else if(test_result == 0 && t == NULL) {
-                split(triangles[i], triangle->to_plane(), triangles);
-                continue;
-            }
-            i++;
+    std::vector<Triangle*> find_front(Triangle* triangle, std::vector<Triangle*>& triangles) {
+        std::vector<Triangle*> front_triangles;
+        for(const auto& t : triangles) {
+            auto test_result = triangle->plane_cross_triangle(t);
+            if(test_result == 1)
+                front_triangles.push_back(t);
         }
-        return t;
+
+        return front_triangles;
     }
 
-    Triangle* find_behind(Triangle* triangle, std::vector<Triangle*>& triangles) {
-        int i = 0;
-        Triangle* t = NULL;
-        while(i < triangles.size()) {
-            auto test_result = triangle->plane_cross_triangle(triangles[i]);
-            if(test_result == -1 && t == NULL) {
-                t = triangles[i];
-            }
-            else if(test_result == 0) {
-                split(triangles[i], triangle->to_plane(), triangles);
-                continue;
-            }
-            i++;
+    std::vector<Triangle*> find_behind(Triangle* triangle, std::vector<Triangle*>& triangles) {
+        std::vector<Triangle*> behind_triangles;
+        for(const auto& t : triangles) {
+            auto test_result = triangle->plane_cross_triangle(t);
+            if(test_result == -1)
+                behind_triangles.push_back(t);
         }
-        return t;
+
+        return behind_triangles;
     }
 
     void make_bsp_tree(BSPNode* node, std::vector<Triangle*>& triangles) {
         if(triangles.size() <= 0 || node == NULL)
             return;
-
-        Triangle* behid_triangle = find_behind(node->triangle, triangles);
-        Triangle* front_triangle = find_front(node->triangle, triangles);
-
-        if(behid_triangle != NULL) {
-            triangles.erase(std::remove(triangles.begin(), triangles.end(), behid_triangle), triangles.end());
-            node->behind = new BSPNode(behid_triangle);
+        
+        // split triangles that cross node triangle
+        int i = 0;
+        auto current_node_triangle = node->triangle;
+        while(i < triangles.size()) {
+            auto test_result = current_node_triangle->plane_cross_triangle(triangles[i]);
+            if(test_result == 0) {
+                split(triangles[i], current_node_triangle->to_plane(), triangles);
+                continue;
+            }
+            i++;
         }
-        if(front_triangle != NULL) {
-            triangles.erase(std::remove(triangles.begin(), triangles.end(), front_triangle), triangles.end());
-            node->front = new BSPNode(front_triangle);
+
+        auto behind_triangles = find_behind(current_node_triangle, triangles);
+        auto front_triangles = find_front(current_node_triangle, triangles);
+
+        if(behind_triangles.size() > 0) {
+            node->behind = new BSPNode(behind_triangles[0]);
+            behind_triangles.erase(behind_triangles.begin());
+        }
+        if(front_triangles.size() > 0) {
+            node->front = new BSPNode(front_triangles[0]);
+            front_triangles.erase(front_triangles.begin());
         }
 
-        make_bsp_tree(node->behind, triangles);
-        make_bsp_tree(node->front, triangles);
+        make_bsp_tree(node->behind, behind_triangles);
+        make_bsp_tree(node->front, front_triangles);
     }
 
     void draw(const Vcam& camera, BSPNode* node) {
@@ -292,6 +291,7 @@ private:
     }
 
     void restore_triangles(std::vector<Triangle*>& triangles) {
+        triangles.clear();
         restore_triangles(root, triangles);
     }
     
