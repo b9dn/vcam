@@ -1,7 +1,8 @@
-#include "cube.hpp"
 #include "include/raylib.h"
 #include "util.hpp"
+#include "cube.hpp"
 #include "include/raymath.h"
+#include <vector>
 
 bool Cube::z_in_range(float z) {
     return z > 0 && z <= 1;
@@ -31,9 +32,9 @@ void Cube::draw(Matrix& project_matrix) {
     }
 
     for(int i = 0; i < 36; i+=3) {
+        // double draw to ommit clock wise triangle drawing
         if(z_in_range(projected_verticies[triangles[i]].z) && z_in_range(projected_verticies[triangles[i+1]].z && z_in_range(projected_verticies[triangles[i+2]].z)))
             DrawTriangle(projected_screen_verticies[triangles[i]], projected_screen_verticies[triangles[i+1]], projected_screen_verticies[triangles[i+2]], colors[i/3]);
-        // double draw to ommit clock wise triangle drawing
         if(z_in_range(projected_verticies[triangles[35-i]].z) && z_in_range(projected_verticies[triangles[35-i-1]].z && z_in_range(projected_verticies[triangles[35-i-2]].z)))
             DrawTriangle(projected_screen_verticies[triangles[35-i]], projected_screen_verticies[triangles[35-i-1]], projected_screen_verticies[triangles[35-i-2]], colors[12-i/3]);
         /* if(z_in_range(projected_verticies[i].z) && z_in_range(projected_verticies[(i+1) % 4].z)) */
@@ -80,6 +81,16 @@ void Cube::set_triangles() {
 
     triangles[30] = 0; triangles[31] = 1; triangles[32] = 5;
     triangles[33] = 5; triangles[34] = 4; triangles[35] = 0;
+}
+
+std::vector<Triangle*> Cube::get_triangles() {
+    std::vector<Triangle*> return_triangles;
+    for(int i = 0; i < 36; i += 3)
+        return_triangles.push_back(
+            new Triangle(verticies[triangles[i]], verticies[triangles[i+1]], verticies[triangles[i+2]])
+        );
+
+    return return_triangles;
 }
 
 void Cube::set_colors() {

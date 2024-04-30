@@ -1,7 +1,9 @@
 #ifndef CUBE_HPP
 #define CUBE_HPP
 
+#include <vector>
 #include "include/raylib.h"
+#include "util.hpp"
 
 class Cube {
 private:
@@ -27,6 +29,8 @@ public:
     void draw(Matrix& project_matrix);
 
     Vector3 get_center();
+
+    std::vector<Triangle*> get_triangles();
 
     void multiply_by_matrix(Matrix& mat);
 };

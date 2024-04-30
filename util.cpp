@@ -1,7 +1,88 @@
 #include "util.hpp"
+#include "include/raymath.h"
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
+
+Vcam::Vcam(Vector3 camera_pos, Vector3 camera_up, Vector3 camera_target, Matrix projection_matrix) {
+    this->camera_up = camera_up;
+    this->camera_pos = camera_pos;
+    this->camera_target = camera_target;
+    this->camera_right = Vector3CrossProduct(camera_target, camera_up);
+    this->projection_matrix = projection_matrix;
+}
+
+Triangle::Triangle(Vector3 v1, Vector3 v2, Vector3 v3) {
+    this->verticies[0] = v1;
+    this->verticies[1] = v2;
+    this->verticies[2] = v3;
+    this->color = get_random_color();
+    this->visible = true;
+}
+
+Triangle::Triangle(Vector3 v1, Vector3 v2, Vector3 v3, Color color) {
+    this->verticies[0] = v1;
+    this->verticies[1] = v2;
+    this->verticies[2] = v3;
+    this->color = color;
+    this->visible = true;
+}
+
+// does triangle plane cross given triangle
+// 1 if in front, 0 if they cross, -1 if behind
+int Triangle::plane_cross_triangle(Triangle* triangle) {
+    Vector4 plane = to_plane();
+    float sign_p1 = point_in_plane_equasion(triangle->verticies[0], plane);
+    float sign_p2 = point_in_plane_equasion(triangle->verticies[1], plane);
+    float sign_p3 = point_in_plane_equasion(triangle->verticies[2], plane);
+    if(sign_p1 == 0 && sign_p2 == 0 && sign_p3 == 0)
+        return 1;
+    else if((sign_p1 >= 0 && sign_p2 >= 0 && sign_p3 >= 0))
+        return 1;
+    else if(sign_p1 <= 0 && sign_p2 <= 0 && sign_p3 <= 0)
+        return -1;
+
+    return 0;
+}
+
+Vector4 Triangle::to_plane() {
+    auto v1 = Vector3Subtract(verticies[0], verticies[1]);
+    auto v2 = Vector3Subtract(verticies[0], verticies[2]);
+    auto normal = Vector3CrossProduct(v1, v2);
+    auto point = verticies[0];
+    auto d = -normal.x * point.x -normal.y * point.y - normal.z * point.z;
+
+    return (Vector4){normal.x, normal.y, normal.z, d};
+}
+
+void Triangle::rotate(Quaternion& q) {
+    for(int i = 0; i < 3; i++)
+        verticies[i] = Vector3RotateByQuaternion(verticies[i], q);
+}
+
+void Triangle::multiply_by_matrix(Matrix& mat) {
+    for(auto& v : verticies)
+        v = multiply_mv(mat, v);
+}
+
+void Triangle::draw(const Vcam& camera) {
+    if(!this->visible)
+        return;
+
+    Vector3 projected_verticies[3] = {0};
+    Vector2 projected_screen_verticies[3] = {0};
+    
+    for(int i = 0; i < 3; i++) {
+        projected_verticies[i] = multiply_mv(camera.projection_matrix, verticies[i]);
+        projected_screen_verticies[i] = get_2d_screen_vec(projected_verticies[i]);
+    }
+
+    // double draw to omit clock wise triangles only
+    if(z_in_range(projected_verticies[0].z) && z_in_range(projected_verticies[1].z && z_in_range(projected_verticies[2].z)))
+        DrawTriangle(projected_screen_verticies[0], projected_screen_verticies[1], projected_screen_verticies[2], color);
+    if(z_in_range(projected_verticies[2].z) && z_in_range(projected_verticies[1].z && z_in_range(projected_verticies[0].z)))
+        DrawTriangle(projected_screen_verticies[2], projected_screen_verticies[1], projected_screen_verticies[0], color);
+}
 
 Vector3 multiply_mv(const Matrix &mat, const Vector3 &vec) {
     Vector3 ret;
@@ -63,7 +144,7 @@ Matrix get_project_matrix(int screenWidth, int screenHeight, float fovy, float z
     float f = 1.0f/tan(fovy/2);
 
     project_mat.m0 = f/aspect;
-    project_mat.m5 = f;
+    project_mat.m5 = -f;
     project_mat.m10 = (zFar+zNear)/(zNear-zFar);
     project_mat.m11 = -1;
     project_mat.m14 = 2*zFar*zNear/(zNear-zFar);

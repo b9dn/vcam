@@ -5,368 +5,48 @@
 #include <cstdlib>
 #include <ctime>
 #include <vector>
-#include <algorithm>
 
 #include "util.hpp"
 #include "cube.hpp"
-
-class Vcam {
-public:
-    Vector3 camera_up;
-    Vector3 camera_pos;
-    Vector3 camera_target;
-    Vector3 camera_right;
-    Matrix projection_matrix;
-
-    Vcam(Vector3 camera_pos, Vector3 camera_up, Vector3 camera_target, Matrix projection_matrix) {
-        this->camera_up = camera_up;
-        this->camera_pos = camera_pos;
-        this->camera_target = camera_target;
-        this->camera_right = Vector3CrossProduct(camera_target, camera_up);
-        this->projection_matrix = projection_matrix;
-    }
-};
-
-class Triangle {
-public:
-    Vector3 verticies[3];
-    Color color;
-    bool visible;
-    Triangle(Vector3 v1, Vector3 v2, Vector3 v3, Color color) {
-        this->verticies[0] = v1;
-        this->verticies[1] = v2;
-        this->verticies[2] = v3;
-        this->color = color;
-        this->visible = true;
-    }
-
-    Triangle(Vector3 v1, Vector3 v2, Vector3 v3) {
-        this->verticies[0] = v1;
-        this->verticies[1] = v2;
-        this->verticies[2] = v3;
-        this->color = get_random_color();
-        this->visible = true;
-    }
-
-    // does triangle plane cross given triangle
-    // 1 if in front, 0 if they cross, -1 if behind
-    int plane_cross_triangle(Triangle* triangle) {
-        auto v1 = Vector3Subtract(verticies[0], verticies[1]);
-        auto v2 = Vector3Subtract(verticies[0], verticies[2]);
-        auto normal = Vector3CrossProduct(v1, v2);
-        auto point = verticies[0];
-        auto d = -normal.x * point.x -normal.y * point.y - normal.z * point.z;
-
-        Vector4 plane = (Vector4){normal.x, normal.y, normal.z, d};
-        float sign_p1 = point_in_plane_equasion(triangle->verticies[0], plane);
-        float sign_p2 = point_in_plane_equasion(triangle->verticies[1], plane);
-        float sign_p3 = point_in_plane_equasion(triangle->verticies[2], plane);
-        if((sign_p1 >= 0 && sign_p2 >= 0 && sign_p3 >= 0))
-            return 1;
-        else if(sign_p1 <= 0 && sign_p2 <= 0 && sign_p3 <= 0)
-            return -1;
-
-        return 0;
-    }
-
-    Vector4 to_plane() {
-        auto v1 = Vector3Subtract(verticies[0], verticies[1]);
-        auto v2 = Vector3Subtract(verticies[0], verticies[2]);
-        auto normal = Vector3CrossProduct(v1, v2);
-        auto point = verticies[0];
-        auto d = -normal.x * point.x -normal.y * point.y - normal.z * point.z;
-
-        return (Vector4){normal.x, normal.y, normal.z, d};
-    }
-
-    void rotate(Quaternion& q) {
-        for(int i = 0; i < 3; i++)
-            verticies[i] = Vector3RotateByQuaternion(verticies[i], q);
-    }
-
-    void multiply_by_matrix(Matrix& mat) {
-        for(auto& v : verticies)
-            v = multiply_mv(mat, v);
-    }
-
-    void draw(const Vcam& camera) {
-        if(!this->visible)
-            return;
-
-        Vector3 projected_verticies[3] = {0};
-        Vector2 projected_screen_verticies[3] = {0};
-        
-        for(int i = 0; i < 3; i++) {
-            projected_verticies[i] = multiply_mv(camera.projection_matrix, verticies[i]);
-            projected_screen_verticies[i] = get_2d_screen_vec(projected_verticies[i]);
-        }
-
-        // double draw to omit clock wise triangles only
-        if(z_in_range(projected_verticies[0].z) && z_in_range(projected_verticies[1].z && z_in_range(projected_verticies[2].z)))
-            DrawTriangle(projected_screen_verticies[0], projected_screen_verticies[1], projected_screen_verticies[2], color);
-        if(z_in_range(projected_verticies[2].z) && z_in_range(projected_verticies[1].z && z_in_range(projected_verticies[0].z)))
-            DrawTriangle(projected_screen_verticies[2], projected_screen_verticies[1], projected_screen_verticies[0], color);
-    }
-};
-
-class BSPNode {
-public:
-    Triangle* triangle;
-    Vector3 triangle_normal;
-    Vector3 point_on_triangle;
-    BSPNode* behind;
-    BSPNode* front;
-
-    BSPNode(Triangle* triangle) {
-        this->triangle = triangle;
-        this->point_on_triangle = triangle->verticies[0];
-        this->behind = NULL;
-        this->front = NULL;
-
-        auto v1 = Vector3Subtract(triangle->verticies[0], triangle->verticies[1]);
-        auto v2 = Vector3Subtract(triangle->verticies[0], triangle->verticies[2]);
-        this->triangle_normal = Vector3CrossProduct(v1, v2);
-    }
-
-    bool camera_in_front(const Vcam& camera) {
-        auto camera_vector = Vector3Subtract(camera.camera_pos, point_on_triangle);
-        return Vector3DotProduct(camera_vector, triangle_normal) > 0 ? true : false;
-    }
-};
-
-class BSPTree {
-private:
-    BSPNode* root;
-
-    Vector3 line_intersection_with_plane(Vector3 p1, Vector3 p2, Vector4 plane) {
-        float denominator = plane.x * (p2.x - p1.x) + 
-                        plane.y * (p2.y - p1.y) + 
-                        plane.z * (p2.z - p1.z);
-
-        float param = -((plane.x * p1.x + plane.y * p1.y + plane.z * p1.z + plane.w) / denominator);
-
-        float intersection_x = p1.x + param * (p2.x - p1.x);
-        float intersection_y = p1.y + param * (p2.y - p1.y);
-        float intersection_z = p1.z + param * (p2.z - p1.z);
-
-        return {intersection_x, intersection_y, intersection_z};
-    }
-
-    // split triangle using plane
-    void split(Triangle* t, Vector4 plane, std::vector<Triangle*>& triangles) {
-        triangles.erase(std::remove(triangles.begin(), triangles.end(), t), triangles.end());
-        float sign_p1 = point_in_plane_equasion(t->verticies[0], plane);
-        float sign_p2 = point_in_plane_equasion(t->verticies[1], plane);
-        float sign_p3 = point_in_plane_equasion(t->verticies[2], plane);
-
-        Vector3 one_side;
-        Vector3 other_side1;
-        Vector3 other_side2;
-        Vector3 intersection1;
-        Vector3 intersection2;
-
-        // split on 2 triangles
-        if(sign_p1 == 0) {
-            intersection1 = line_intersection_with_plane(t->verticies[1], t->verticies[2], plane);
-            Triangle* t1new = new Triangle(t->verticies[0], intersection1, t->verticies[1], t->color);
-            Triangle* t2new = new Triangle(t->verticies[0], intersection1, t->verticies[2], t->color);
-            triangles.push_back(t1new);
-            triangles.push_back(t2new);
-            return;
-        }
-        if(sign_p2 == 0) {
-            intersection1 = line_intersection_with_plane(t->verticies[0], t->verticies[2], plane);
-            Triangle* t1new = new Triangle(t->verticies[1], intersection1, t->verticies[0], t->color);
-            Triangle* t2new = new Triangle(t->verticies[1], intersection1, t->verticies[2], t->color);
-            triangles.push_back(t1new);
-            triangles.push_back(t2new);
-            return;
-        }
-        if(sign_p3 == 0) {
-            intersection1 = line_intersection_with_plane(t->verticies[0], t->verticies[1], plane);
-            Triangle* t1new = new Triangle(t->verticies[2], intersection1, t->verticies[0], t->color);
-            Triangle* t2new = new Triangle(t->verticies[2], intersection1, t->verticies[1], t->color);
-            triangles.push_back(t1new);
-            triangles.push_back(t2new);
-            return;
-        }
-        // split on 3 triangles
-        else if((sign_p1 > 0 && sign_p2 > 0) || (sign_p1 < 0 && sign_p2 < 0)) {
-            one_side = t->verticies[2];
-            other_side1 = t->verticies[0];
-            other_side2 = t->verticies[1];
-        }
-        else if((sign_p2 > 0 && sign_p3 > 0) || (sign_p2 < 0 && sign_p3 < 0)) {
-            one_side = t->verticies[0];
-            other_side1 = t->verticies[1];
-            other_side2 = t->verticies[2];
-        }
-        else {
-            one_side = t->verticies[1];
-            other_side1 = t->verticies[0];
-            other_side2 = t->verticies[2];
-        }
-
-        intersection1 = line_intersection_with_plane(one_side, other_side1, plane);
-        intersection2 = line_intersection_with_plane(one_side, other_side2, plane);
-
-        Triangle* t1new = new Triangle(one_side, intersection1, intersection2, t->color);
-        Triangle* t2new = new Triangle(other_side1, intersection1, intersection2, t->color);
-        Triangle* t3new = new Triangle(intersection2, other_side1, other_side2, t->color);
-
-        triangles.push_back(t1new);
-        triangles.push_back(t2new);
-        triangles.push_back(t3new);
-    }
-
-    std::vector<Triangle*> find_front(Triangle* triangle, std::vector<Triangle*>& triangles) {
-        std::vector<Triangle*> front_triangles;
-        for(const auto& t : triangles) {
-            auto test_result = triangle->plane_cross_triangle(t);
-            if(test_result == 1)
-                front_triangles.push_back(t);
-        }
-
-        return front_triangles;
-    }
-
-    std::vector<Triangle*> find_behind(Triangle* triangle, std::vector<Triangle*>& triangles) {
-        std::vector<Triangle*> behind_triangles;
-        for(const auto& t : triangles) {
-            auto test_result = triangle->plane_cross_triangle(t);
-            if(test_result == -1)
-                behind_triangles.push_back(t);
-        }
-
-        return behind_triangles;
-    }
-
-    void make_bsp_tree(BSPNode* node, std::vector<Triangle*>& triangles) {
-        if(triangles.size() <= 0 || node == NULL)
-            return;
-        
-        // split triangles that cross node triangle
-        int i = 0;
-        auto current_node_triangle = node->triangle;
-        while(i < triangles.size()) {
-            auto test_result = current_node_triangle->plane_cross_triangle(triangles[i]);
-            if(test_result == 0) {
-                split(triangles[i], current_node_triangle->to_plane(), triangles);
-                continue;
-            }
-            i++;
-        }
-
-        auto behind_triangles = find_behind(current_node_triangle, triangles);
-        auto front_triangles = find_front(current_node_triangle, triangles);
-
-        if(behind_triangles.size() > 0) {
-            node->behind = new BSPNode(behind_triangles[0]);
-            behind_triangles.erase(behind_triangles.begin());
-        }
-        if(front_triangles.size() > 0) {
-            node->front = new BSPNode(front_triangles[0]);
-            front_triangles.erase(front_triangles.begin());
-        }
-
-        make_bsp_tree(node->behind, behind_triangles);
-        make_bsp_tree(node->front, front_triangles);
-    }
-
-    void draw(const Vcam& camera, BSPNode* node) {
-        if(node == NULL)
-            return;
-
-        auto is_camera_front = node->camera_in_front(camera);
-        if(is_camera_front) {
-            draw(camera, node->behind);
-            node->triangle->draw(camera);
-            draw(camera, node->front);
-        }
-        else {
-            draw(camera, node->front);
-            node->triangle->draw(camera);
-            draw(camera, node->behind);
-        }
-    }
-
-    void restore_triangles(std::vector<Triangle*>& triangles) {
-        triangles.clear();
-        restore_triangles(root, triangles);
-    }
-    
-    void restore_triangles(BSPNode* node, std::vector<Triangle*>& triangles) {
-        if(node == NULL)
-            return;
-
-        triangles.push_back(node->triangle);
-        restore_triangles(node->behind, triangles);
-        restore_triangles(node->front, triangles);
-    }
-
-public:
-    BSPTree(std::vector<Triangle*>& triangles) {
-        if(triangles.size() > 0) {
-            root = new BSPNode(triangles[0]);
-            triangles.erase(triangles.begin());
-        }
-        make_bsp_tree(root, triangles);
-        restore_triangles(triangles);
-    }
-
-    void draw(Vcam camera) {
-        draw(camera, root);
-    }
-};
+#include "bsp.hpp"
 
 std::vector<Cube> init_cubes() {
     return std::vector<Cube> {
         Cube({0.0f, 0.0f, -10.0f}, 1.0f), 
-        /* Cube({4.0f, 0.0f, -10.0f}, 1.0f), */
-        /* Cube({-4.0f, 0.0f, -10.0f}, 1.0f), */
-        /* Cube({0.0f, 0.0f, -14.0f}, 1.0f), */ 
-        /* Cube({4.0f, 0.0f, -14.0f}, 1.0f), */
-        /* Cube({-4.0f, 0.0f, -14.0f}, 1.0f), */
-        /* Cube({0.0f, 0.0f, -18.0f}, 1.0f), */ 
-        /* Cube({4.0f, 0.0f, -18.0f}, 1.0f), */
-        /* Cube({-4.0f, 0.0f, -18.0f}, 1.0f), */
+        Cube({4.0f, 0.0f, -10.0f}, 1.0f),
+        Cube({-4.0f, 0.0f, -10.0f}, 1.0f),
+        Cube({0.0f, 0.0f, -14.0f}, 1.0f), 
+        Cube({4.0f, 0.0f, -14.0f}, 1.0f),
+        Cube({-4.0f, 0.0f, -14.0f}, 1.0f),
+        Cube({0.0f, 0.0f, -18.0f}, 1.0f), 
+        Cube({4.0f, 0.0f, -18.0f}, 1.0f),
+        Cube({-4.0f, 0.0f, -18.0f}, 1.0f),
 
-        /* Cube({0.0f, -4.0f, -10.0f}, 1.0f), */ 
-        /* Cube({4.0f, -4.0f, -10.0f}, 1.0f), */
-        /* Cube({-4.0f, -4.0f, -10.0f}, 1.0f), */
-        /* Cube({0.0f, -4.0f, -14.0f}, 1.0f), */ 
-        /* Cube({4.0f, -4.0f, -14.0f}, 1.0f), */
-        /* Cube({-4.0f, -4.0f, -14.0f}, 1.0f), */
-        /* Cube({0.0f, -4.0f, -18.0f}, 1.0f), */ 
-        /* Cube({4.0f, -4.0f, -18.0f}, 1.0f), */
-        /* Cube({-4.0f, -4.0f, -18.0f}, 1.0f), */
+        Cube({0.0f, -4.0f, -10.0f}, 1.0f), 
+        Cube({4.0f, -4.0f, -10.0f}, 1.0f),
+        Cube({-4.0f, -4.0f, -10.0f}, 1.0f),
+        Cube({0.0f, -4.0f, -14.0f}, 1.0f), 
+        Cube({4.0f, -4.0f, -14.0f}, 1.0f),
+        Cube({-4.0f, -4.0f, -14.0f}, 1.0f),
+        Cube({0.0f, -4.0f, -18.0f}, 1.0f), 
+        Cube({4.0f, -4.0f, -18.0f}, 1.0f),
+        Cube({-4.0f, -4.0f, -18.0f}, 1.0f),
 
-        /* Cube({0.0f, 4.0f, -10.0f}, 1.0f), */ 
-        /* Cube({4.0f, 4.0f, -10.0f}, 1.0f), */
-        /* Cube({-4.0f, 4.0f, -10.0f}, 1.0f), */
-        /* Cube({0.0f, 4.0f, -14.0f}, 1.0f), */ 
-        /* Cube({4.0f, 4.0f, -14.0f}, 1.0f), */
-        /* Cube({-4.0f, 4.0f, -14.0f}, 1.0f), */
-        /* Cube({0.0f, 4.0f, -18.0f}, 1.0f), */ 
-        /* Cube({4.0f, 4.0f, -18.0f}, 1.0f), */
-        /* Cube({-4.0f, 4.0f, -18.0f}, 1.0f), */
-
-        Cube({10.0f, 0.0f, -10.0f}, 1.0f), 
-        // debug
-        Cube({0.0f, 0.0f, 10.0f}, 1.0f), 
-        Cube({0.0f, 10.0f, 0.0f}, 1.0f), 
-        Cube({0.0f, -10.0f, 0.0f}, 1.0f), 
-        Cube({10.0f, 0.0f, 0.0f}, 1.0f), 
-        Cube({-10.0f, 0.0f, 0.0f}, 1.0f), 
-        // debug end
+        Cube({0.0f, 4.0f, -10.0f}, 1.0f), 
+        Cube({4.0f, 4.0f, -10.0f}, 1.0f),
+        Cube({-4.0f, 4.0f, -10.0f}, 1.0f),
+        Cube({0.0f, 4.0f, -14.0f}, 1.0f), 
+        Cube({4.0f, 4.0f, -14.0f}, 1.0f),
+        Cube({-4.0f, 4.0f, -14.0f}, 1.0f),
+        Cube({0.0f, 4.0f, -18.0f}, 1.0f), 
+        Cube({4.0f, 4.0f, -18.0f}, 1.0f),
+        Cube({-4.0f, 4.0f, -18.0f}, 1.0f),
     };
 }
 
 std::vector<Triangle*> init_triangles() {
     return std::vector<Triangle*> {
-        new Triangle({0.0f, 0.0f, -10.0f}, {10.0f, 10.0f, -10.0f}, {10.0f, 0.0f, -10.0f}, BLACK),
-        new Triangle({-5.0f, -5.0f, -20.0f}, {10.0f, 10.0f, -20.0f}, {10.0f, 0.0f, -20.0f}),
-        new Triangle({0.0f, 0.0f, -5.0f}, {10.0f, 10.0f, -10.0f}, {10.0f, 0.0f, -30.0f}, RED),
+        /* new Triangle({0.0f, 0.0f, -5.0f}, {10.0f, 10.0f, -10.0f}, {10.0f, 0.0f, -30.0f}, RED), */
     };
 }
 
@@ -379,13 +59,15 @@ int main(void) {
     float side_size = 1.0f;
     /* int cubes_n = 9; */
     std::vector<Triangle*> triangles = init_triangles();
-    int invisible_indx = -1;
+    std::vector<Cube> cubes = init_cubes();
+    for(auto& cube : cubes) {
+        auto cube_triangles = cube.get_triangles();
+        triangles.insert(triangles.end(), cube_triangles.begin(), cube_triangles.end());
+    }
 
-    /* for(int i = 0; i < cubes_n; i++) { */
-    /*     Vector3 cube_center = get_random_vector(-10.0f, 10.0f); */
-    /*     cube_center.y = 0.0f; */
-    /*     cubes.push_back(Cube(cube_center, side_size)); */
-    /* } */
+    // if index == -1 all triangles are visible
+    int invisible_indx = -1;
+    bool wire_mode = false;
 
     float zNear = 0.1f, zFar = 100.0f;
     const float default_fovy = 60.0f;
@@ -404,9 +86,9 @@ int main(void) {
     Matrix move_left = MatrixIdentity();
     move_left.m12 = 0.1f;
     Matrix move_up = MatrixIdentity();
-    move_up.m13 = 0.1f;
+    move_up.m13 = -0.1f;
     Matrix move_down = MatrixIdentity();
-    move_down.m13 = -0.1f;
+    move_down.m13 = 0.1f;
     Matrix move_forward = MatrixIdentity();
     move_forward.m14 = 0.1f;
     Matrix move_backward = MatrixIdentity();
@@ -418,8 +100,6 @@ int main(void) {
 
     SetTargetFPS(60);
     DisableCursor();
-    /* rlSetCullFace(RL_CULL_FACE_BACK); */
-    /* rlEnableWireMode(); */
     //--------------------------------------------------------------------------------------
     // Main game loop
     while (!WindowShouldClose()) {
@@ -428,10 +108,10 @@ int main(void) {
         
         Vector2 mouse_delta = GetMouseDelta();
         if(mouse_delta.x != 0 || mouse_delta.y != 0) {
-            Quaternion q_yaw_rot = QuaternionFromAxisAngle(camera.camera_pos, mouse_delta.x * mouse_sensitivity);
+            Quaternion q_yaw_rot = QuaternionFromAxisAngle(camera.camera_up, mouse_delta.x * mouse_sensitivity);
             Quaternion q_yaw_camera = QuaternionFromAxisAngle({0.0f, 1.0f, 0.0f}, -mouse_delta.x * mouse_sensitivity);
 
-            Quaternion q_pitch_rot = QuaternionFromAxisAngle({-1.0, 0.0, 0.0}, mouse_delta.y * mouse_sensitivity);
+            Quaternion q_pitch_rot = QuaternionFromAxisAngle({1.0, 0.0, 0.0}, mouse_delta.y * mouse_sensitivity);
             Quaternion q_pitch_camera = QuaternionFromAxisAngle(camera.camera_right, -mouse_delta.y * mouse_sensitivity);
 
             camera.camera_target = Vector3RotateByQuaternion(camera.camera_target, q_yaw_camera);
@@ -445,8 +125,6 @@ int main(void) {
                 t->rotate(q_pitch_rot);
             }
         }
-
-        // debug 
 
         if(IsKeyDown(KEY_H)) {
             Quaternion q_yaw_rot = QuaternionFromAxisAngle(camera.camera_up, -7.0f * mouse_sensitivity);
@@ -469,7 +147,7 @@ int main(void) {
         }
 
         if(IsKeyDown(KEY_J)) {
-            Quaternion q_pitch_rot = QuaternionFromAxisAngle({-1.0f, 0.0f, 0.0f}, 7.0f * mouse_sensitivity);
+            Quaternion q_pitch_rot = QuaternionFromAxisAngle({1.0f, 0.0f, 0.0f}, 7.0f * mouse_sensitivity);
             Quaternion q_pitch_camera = QuaternionFromAxisAngle(camera.camera_right, -7.0f * mouse_sensitivity);
             camera.camera_target = Vector3RotateByQuaternion(camera.camera_target, q_pitch_camera);
             camera.camera_up = Vector3RotateByQuaternion(camera.camera_up,  q_pitch_rot);
@@ -479,7 +157,7 @@ int main(void) {
         }
 
         if(IsKeyDown(KEY_K)) {
-            Quaternion q_pitch_rot = QuaternionFromAxisAngle({-1.0f, 0.0f, 0.0f}, -7.0f * mouse_sensitivity);
+            Quaternion q_pitch_rot = QuaternionFromAxisAngle({1.0f, 0.0f, 0.0f}, -7.0f * mouse_sensitivity);
             Quaternion q_pitch_camera = QuaternionFromAxisAngle(camera.camera_right, 7.0f * mouse_sensitivity);
             camera.camera_target = Vector3RotateByQuaternion(camera.camera_target, q_pitch_camera);
             camera.camera_up = Vector3RotateByQuaternion(camera.camera_up, q_pitch_rot);
@@ -487,8 +165,6 @@ int main(void) {
             for(auto& t : triangles)
                 t->rotate(q_pitch_rot);
         }
-
-        // debug end
 
         if(IsKeyDown(KEY_Q)) {
             Quaternion q_roll_rot = QuaternionFromAxisAngle({0.0, 0.0, 1.0}, 10.0f * mouse_sensitivity);
@@ -525,18 +201,31 @@ int main(void) {
         }
         if(IsKeyDown(KEY_SPACE)) {
             camera.camera_pos = Vector3Add(camera.camera_pos, Vector3Scale((Vector3){0.0f, 1.0f, 0.0f}, 0.1f));
+            Matrix move_up = MatrixIdentity();
+            move_up.m12 = camera.camera_up.x * -0.1f;
+            move_up.m13 = camera.camera_up.y * -0.1f;
+            move_up.m14 = camera.camera_up.z * -0.1f;
             for(auto& t : triangles)
                 t->multiply_by_matrix(move_up);
         }
         if(IsKeyDown(KEY_LEFT_CONTROL)) {
-            camera.camera_pos = Vector3Add(camera.camera_pos, Vector3Scale((Vector3){0.0f, -1.0f, 0.0f}, 0.1f));
+            camera.camera_pos = Vector3Subtract(camera.camera_pos, Vector3Scale((Vector3){0.0f, 1.0f, 0.0f}, 0.1f));
+            Matrix move_down = MatrixIdentity();
+            move_down.m12 = camera.camera_up.x * 0.1f;
+            move_down.m13 = camera.camera_up.y * 0.1f;
+            move_down.m14 = camera.camera_up.z * 0.1f;
             for(auto& t : triangles)
                 t->multiply_by_matrix(move_down);
         }
-        if(IsKeyDown(KEY_B)) {
-            printf("break\n");
-            printf("break\n");
-            printf("break\n");
+        /* if(IsKeyDown(KEY_B)) { */
+        /*     printf("break\n"); */
+        /*     printf("break\n"); */
+        /*     printf("break\n"); */
+        /* } */
+        if(IsKeyPressed(KEY_R)) {
+            wire_mode ^= true;
+            if(wire_mode) rlEnableWireMode();
+            else rlDisableWireMode();
         }
         if(IsKeyPressed(KEY_V)) {
             if(invisible_indx != -1)
@@ -550,11 +239,13 @@ int main(void) {
             if(fovy > 1.0f)
                 fovy -= 0.1f;
             project_mat = get_project_matrix(screenWidth, screenHeight, fovy, zNear, zFar);
+            camera.projection_matrix = project_mat;
         }
         if(IsKeyDown(KEY_KP_SUBTRACT)) {
             if(fovy < default_fovy)
                 fovy += 0.1f;
             project_mat = get_project_matrix(screenWidth, screenHeight, fovy, zNear, zFar);
+            camera.projection_matrix = project_mat;
         }
 
         // Draw
@@ -567,9 +258,8 @@ int main(void) {
 
         DrawCircle(screenWidth/2, screenHeight/2, 7.5f, RED);
 
-
         DrawText(TextFormat("Move: WSAD, SPACE, LCTRL"), 20, 20, 20, BLACK);
-        DrawText(TextFormat("Rotate: Mouse, Q, E"), 20, 40, 20, BLACK);
+        DrawText(TextFormat("Rotate: Mouse (or HJKL), Q, E"), 20, 40, 20, BLACK);
         DrawText(TextFormat("Zoom: +, -"), 20, 60, 20, BLACK);
         DrawText(TextFormat("Zoom x%.2f", default_fovy/fovy), 20, 80, 20, BLACK);
 
@@ -589,7 +279,7 @@ int main(void) {
         DrawText(TextFormat("Camera y pos %f", camera.camera_pos.y), 20, 380, 20, BLACK);
         DrawText(TextFormat("Camera z pos %f", camera.camera_pos.z), 20, 400, 20, BLACK);
 
-        DrawText(TextFormat("Invisible index %d", invisible_indx), 20, 440, 20, BLACK);
+        DrawText(TextFormat("Invisible triangle index %d", invisible_indx), 20, 440, 20, BLACK);
 
         EndDrawing();
         //----------------------------------------------------------------------------------
