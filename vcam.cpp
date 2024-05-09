@@ -1,9 +1,6 @@
 #include "include/raylib.h"
 #include "include/raymath.h"
 #include "include/rlgl.h"
-#include <cstdio>
-#include <cstdlib>
-#include <ctime>
 #include <vector>
 
 #include "util.hpp"
@@ -46,20 +43,14 @@ std::vector<Cube> init_cubes() {
 
 std::vector<Triangle*> init_triangles() {
     return std::vector<Triangle*> {
-        new Triangle({10.0f, -4.0f, -5.0f}, {10.0f, -4.0f, 5.0f}, {10.0f, 4.0f, -1.0f}),
-        new Triangle({15.0f, 3.0f, -5.0f}, {15.0f, 3.0f, 5.0f}, {7.0f, -2.0f, 0.0f}),
-        new Triangle({6.0f, -10.0f, 0.5f}, {15.0f, 15.0f, 3.0f}, {15.0f, 3.0f, 0.5f}),
+        /* new Triangle({10.0f, -4.0f, -5.0f}, {10.0f, -4.0f, 5.0f}, {10.0f, 4.0f, -1.0f}), */
     };
 }
 
 int main(void) {
-    SetConfigFlags(FLAG_MSAA_4X_HINT); // Ustawienie multisamplingu na 4x
+    SetConfigFlags(FLAG_MSAA_4X_HINT); // Multisampling 4x
     // Initialization
     //--------------------------------------------------------------------------------------
-    srand(time(NULL));
-
-    float side_size = 1.0f;
-    /* int cubes_n = 9; */
     std::vector<Triangle*> triangles = init_triangles();
     std::vector<Cube> cubes = init_cubes();
     for(auto& cube : cubes) {
@@ -79,7 +70,6 @@ int main(void) {
     Vector3 camera_up = (Vector3){0.0f, 1.0f, 0.0f};
     Vector3 camera_pos = (Vector3){0.0f, 0.0f, 0.0f};
     Vector3 camera_target = (Vector3){0.0f, 0.0f, -1.0f};
-    Vector3 camera_right = Vector3CrossProduct(camera_target, camera_up);
     Vcam camera = Vcam(camera_pos, camera_up, camera_target, project_mat);
     float mouse_sensitivity = 0.001f;
 
@@ -110,17 +100,16 @@ int main(void) {
         
         Vector2 mouse_delta = GetMouseDelta();
         if(mouse_delta.x != 0 || mouse_delta.y != 0) {
-            Quaternion q_yaw_rot = QuaternionFromAxisAngle(camera.camera_up, mouse_delta.x * mouse_sensitivity);
+            Quaternion q_yaw_rot = QuaternionFromAxisAngle(camera.get_up(), mouse_delta.x * mouse_sensitivity);
             Quaternion q_yaw_camera = QuaternionFromAxisAngle({0.0f, 1.0f, 0.0f}, -mouse_delta.x * mouse_sensitivity);
 
             Quaternion q_pitch_rot = QuaternionFromAxisAngle({1.0, 0.0, 0.0}, mouse_delta.y * mouse_sensitivity);
-            Quaternion q_pitch_camera = QuaternionFromAxisAngle(camera.camera_right, -mouse_delta.y * mouse_sensitivity);
+            Quaternion q_pitch_camera = QuaternionFromAxisAngle(camera.get_right(), -mouse_delta.y * mouse_sensitivity);
+            camera.rotate_target(q_yaw_camera);
+            camera.rotate_right(q_yaw_camera);
 
-            camera.camera_target = Vector3RotateByQuaternion(camera.camera_target, q_yaw_camera);
-            camera.camera_right = Vector3RotateByQuaternion(camera.camera_right, q_yaw_camera);
-
-            camera.camera_target = Vector3RotateByQuaternion(camera.camera_target, q_pitch_camera);
-            camera.camera_up = Vector3RotateByQuaternion(camera.camera_up,  q_pitch_rot);
+            camera.rotate_target(q_pitch_camera);
+            camera.rotate_up(q_pitch_rot);
 
             for(auto& t : triangles) {
                 t->rotate(q_yaw_rot);
@@ -129,20 +118,20 @@ int main(void) {
         }
 
         if(IsKeyDown(KEY_H)) {
-            Quaternion q_yaw_rot = QuaternionFromAxisAngle(camera.camera_up, -7.0f * mouse_sensitivity);
+            Quaternion q_yaw_rot = QuaternionFromAxisAngle(camera.get_up(), -7.0f * mouse_sensitivity);
             Quaternion q_yaw_camera = QuaternionFromAxisAngle({0.0f, 1.0f, 0.0f}, 7.0 * mouse_sensitivity);
-            camera.camera_target = Vector3RotateByQuaternion(camera.camera_target, q_yaw_camera);
-            camera.camera_right = Vector3RotateByQuaternion(camera.camera_right, q_yaw_camera);
+            camera.rotate_target(q_yaw_camera);
+            camera.rotate_right(q_yaw_camera);
 
             for(auto& t : triangles)
                 t->rotate(q_yaw_rot);
         }
 
         if(IsKeyDown(KEY_L)) {
-            Quaternion q_yaw_rot = QuaternionFromAxisAngle(camera.camera_up, 7.0f * mouse_sensitivity);
+            Quaternion q_yaw_rot = QuaternionFromAxisAngle(camera.get_up(), 7.0f * mouse_sensitivity);
             Quaternion q_yaw_camera = QuaternionFromAxisAngle({0.0f, 1.0f, 0.0f}, -7.0 * mouse_sensitivity);
-            camera.camera_target = Vector3RotateByQuaternion(camera.camera_target, q_yaw_camera);
-            camera.camera_right = Vector3RotateByQuaternion(camera.camera_right, q_yaw_camera);
+            camera.rotate_target(q_yaw_camera);
+            camera.rotate_right(q_yaw_camera);
 
             for(auto& t : triangles)
                 t->rotate(q_yaw_rot);
@@ -150,9 +139,9 @@ int main(void) {
 
         if(IsKeyDown(KEY_J)) {
             Quaternion q_pitch_rot = QuaternionFromAxisAngle({1.0f, 0.0f, 0.0f}, 7.0f * mouse_sensitivity);
-            Quaternion q_pitch_camera = QuaternionFromAxisAngle(camera.camera_right, -7.0f * mouse_sensitivity);
-            camera.camera_target = Vector3RotateByQuaternion(camera.camera_target, q_pitch_camera);
-            camera.camera_up = Vector3RotateByQuaternion(camera.camera_up,  q_pitch_rot);
+            Quaternion q_pitch_camera = QuaternionFromAxisAngle(camera.get_right(), -7.0f * mouse_sensitivity);
+            camera.rotate_target(q_pitch_camera);
+            camera.rotate_up(q_pitch_rot);
 
             for(auto& t : triangles)
                 t->rotate(q_pitch_rot);
@@ -160,9 +149,9 @@ int main(void) {
 
         if(IsKeyDown(KEY_K)) {
             Quaternion q_pitch_rot = QuaternionFromAxisAngle({1.0f, 0.0f, 0.0f}, -7.0f * mouse_sensitivity);
-            Quaternion q_pitch_camera = QuaternionFromAxisAngle(camera.camera_right, 7.0f * mouse_sensitivity);
-            camera.camera_target = Vector3RotateByQuaternion(camera.camera_target, q_pitch_camera);
-            camera.camera_up = Vector3RotateByQuaternion(camera.camera_up, q_pitch_rot);
+            Quaternion q_pitch_camera = QuaternionFromAxisAngle(camera.get_right(), 7.0f * mouse_sensitivity);
+            camera.rotate_target(q_pitch_camera);
+            camera.rotate_up(q_pitch_rot);
 
             for(auto& t : triangles)
                 t->rotate(q_pitch_rot);
@@ -170,65 +159,77 @@ int main(void) {
 
         if(IsKeyDown(KEY_Q)) {
             Quaternion q_roll_rot = QuaternionFromAxisAngle({0.0, 0.0, 1.0}, 10.0f * mouse_sensitivity);
+            Quaternion q_roll_camera = QuaternionFromAxisAngle(camera.get_target(), -10.0f * mouse_sensitivity);
+            camera.rotate_right(q_roll_camera);
+            camera.rotate_up(q_roll_camera);
+
             for(auto& t : triangles) {
                 t->rotate(q_roll_rot);
             }
         }
+
         if(IsKeyDown(KEY_E)) {
-            Quaternion q_roll_rot = QuaternionFromAxisAngle({0.0, 0.0, -1.0}, 10.0f * mouse_sensitivity);    
+            Quaternion q_roll_rot = QuaternionFromAxisAngle({0.0, 0.0, 1.0}, -10.0f * mouse_sensitivity);    
+            Quaternion q_roll_camera = QuaternionFromAxisAngle(camera.get_target(), 10.0f * mouse_sensitivity);    
+            camera.rotate_right(q_roll_camera);
+            camera.rotate_up(q_roll_camera);
+            
             for(auto& t : triangles) {
                 t->rotate(q_roll_rot);
             }
         }
 
         if(IsKeyDown(KEY_W)) {
-            camera.camera_pos = Vector3Add(camera.camera_pos, Vector3Scale(Vector3Normalize(camera.camera_target), 0.1));
+            camera.move_forward();
             for(auto& t : triangles)
                 t->multiply_by_matrix(move_forward);
         }
+
         if(IsKeyDown(KEY_S)) {
-            camera.camera_pos = Vector3Subtract(camera.camera_pos, Vector3Scale(Vector3Normalize(camera.camera_target), 0.1));
+            camera.move_backward();
             for(auto& t : triangles)
                 t->multiply_by_matrix(move_backward);
         }
+        
         if(IsKeyDown(KEY_A)) {
-            camera.camera_pos = Vector3Subtract(camera.camera_pos, Vector3Scale(Vector3Normalize(camera.camera_right), 0.1));
+            camera.move_left();
             for(auto& t : triangles)
                 t->multiply_by_matrix(move_left);
         }
+        
         if(IsKeyDown(KEY_D)) {
-            camera.camera_pos = Vector3Add(camera.camera_pos, Vector3Scale(Vector3Normalize(camera.camera_right), 0.1));
+            camera.move_right();
             for(auto& t : triangles)
                 t->multiply_by_matrix(move_right);
         }
+        
         if(IsKeyDown(KEY_SPACE)) {
-            camera.camera_pos = Vector3Add(camera.camera_pos, Vector3Scale((Vector3){0.0f, 1.0f, 0.0f}, 0.1f));
+            camera.move_up();
             Matrix move_up = MatrixIdentity();
-            move_up.m12 = camera.camera_up.x * -0.1f;
-            move_up.m13 = camera.camera_up.y * -0.1f;
-            move_up.m14 = camera.camera_up.z * -0.1f;
+            move_up.m12 = camera.get_up().x * -0.1f;
+            move_up.m13 = camera.get_up().y * -0.1f;
+            move_up.m14 = camera.get_up().z * -0.1f;
             for(auto& t : triangles)
                 t->multiply_by_matrix(move_up);
         }
+
         if(IsKeyDown(KEY_LEFT_CONTROL)) {
-            camera.camera_pos = Vector3Subtract(camera.camera_pos, Vector3Scale((Vector3){0.0f, 1.0f, 0.0f}, 0.1f));
+            camera.move_down();
             Matrix move_down = MatrixIdentity();
-            move_down.m12 = camera.camera_up.x * 0.1f;
-            move_down.m13 = camera.camera_up.y * 0.1f;
-            move_down.m14 = camera.camera_up.z * 0.1f;
+            move_down.m12 = camera.get_up().x * 0.1f;
+            move_down.m13 = camera.get_up().y * 0.1f;
+            move_down.m14 = camera.get_up().z * 0.1f;
             for(auto& t : triangles)
                 t->multiply_by_matrix(move_down);
         }
-        /* if(IsKeyDown(KEY_B)) { */
-        /*     printf("break\n"); */
-        /*     printf("break\n"); */
-        /*     printf("break\n"); */
-        /* } */
+        
+        // wire mode
         if(IsKeyPressed(KEY_R)) {
             wire_mode ^= true;
             if(wire_mode) rlEnableWireMode();
             else rlDisableWireMode();
         }
+
         if(IsKeyPressed(KEY_V)) {
             if(invisible_indx != -1)
                 triangles[invisible_indx]->visible = true;
@@ -241,13 +242,14 @@ int main(void) {
             if(fovy > 1.0f)
                 fovy -= 0.1f;
             project_mat = get_project_matrix(screenWidth, screenHeight, fovy, zNear, zFar);
-            camera.projection_matrix = project_mat;
+            camera.set_projection_mat(project_mat);
         }
+
         if(IsKeyDown(KEY_KP_SUBTRACT)) {
             if(fovy < default_fovy)
                 fovy += 0.1f;
             project_mat = get_project_matrix(screenWidth, screenHeight, fovy, zNear, zFar);
-            camera.projection_matrix = project_mat;
+            camera.set_projection_mat(project_mat);
         }
 
         // Draw
@@ -265,21 +267,21 @@ int main(void) {
         DrawText(TextFormat("Zoom: +, -"), 20, 60, 20, BLACK);
         DrawText(TextFormat("Zoom x%.2f", default_fovy/fovy), 20, 80, 20, BLACK);
 
-        DrawText(TextFormat("Camera x target %f", camera.camera_target.x), 20, 120, 20, BLACK);
-        DrawText(TextFormat("Camera y target %f", camera.camera_target.y), 20, 140, 20, BLACK);
-        DrawText(TextFormat("Camera z target %f", camera.camera_target.z), 20, 160, 20, BLACK);
+        DrawText(TextFormat("Camera x target %f", camera.get_target().x), 20, 120, 20, BLACK);
+        DrawText(TextFormat("Camera y target %f", camera.get_target().y), 20, 140, 20, BLACK);
+        DrawText(TextFormat("Camera z target %f", camera.get_target().z), 20, 160, 20, BLACK);
 
-        DrawText(TextFormat("Camera x up %f", camera.camera_up.x), 20, 200, 20, BLACK);
-        DrawText(TextFormat("Camera y up %f", camera.camera_up.y), 20, 220, 20, BLACK);
-        DrawText(TextFormat("Camera z up %f", camera.camera_up.z), 20, 240, 20, BLACK);
+        DrawText(TextFormat("Camera x up %f", camera.get_up().x), 20, 200, 20, BLACK);
+        DrawText(TextFormat("Camera y up %f", camera.get_up().y), 20, 220, 20, BLACK);
+        DrawText(TextFormat("Camera z up %f", camera.get_up().z), 20, 240, 20, BLACK);
 
-        DrawText(TextFormat("Camera x right %f", camera.camera_right.x), 20, 280, 20, BLACK);
-        DrawText(TextFormat("Camera y right %f", camera.camera_right.y), 20, 300, 20, BLACK);
-        DrawText(TextFormat("Camera z right %f", camera.camera_right.z), 20, 320, 20, BLACK);
+        DrawText(TextFormat("Camera x right %f", camera.get_right().x), 20, 280, 20, BLACK);
+        DrawText(TextFormat("Camera y right %f", camera.get_right().y), 20, 300, 20, BLACK);
+        DrawText(TextFormat("Camera z right %f", camera.get_right().z), 20, 320, 20, BLACK);
 
-        DrawText(TextFormat("Camera x pos %f", camera.camera_pos.x), 20, 360, 20, BLACK);
-        DrawText(TextFormat("Camera y pos %f", camera.camera_pos.y), 20, 380, 20, BLACK);
-        DrawText(TextFormat("Camera z pos %f", camera.camera_pos.z), 20, 400, 20, BLACK);
+        DrawText(TextFormat("Camera x pos %f", camera.get_pos().x), 20, 360, 20, BLACK);
+        DrawText(TextFormat("Camera y pos %f", camera.get_pos().y), 20, 380, 20, BLACK);
+        DrawText(TextFormat("Camera z pos %f", camera.get_pos().z), 20, 400, 20, BLACK);
 
         DrawText(TextFormat("Invisible triangle index %d", invisible_indx), 20, 440, 20, BLACK);
 
@@ -291,6 +293,9 @@ int main(void) {
     //--------------------------------------------------------------------------------------
     CloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
+    
+    for(auto& t : triangles)
+        delete t;
 
     return 0;
 }

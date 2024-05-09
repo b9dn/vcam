@@ -4,7 +4,7 @@
 #include "include/raymath.h"
 #include <vector>
 
-bool Cube::z_in_range(float z) {
+bool Cube::z_in_range(float z) const {
     return z > 0 && z <= 1;
 }
 
@@ -22,7 +22,7 @@ void Cube::rotate(Quaternion& q) {
         verticies[i] = Vector3RotateByQuaternion(verticies[i], q);
 }
 
-void Cube::draw(Matrix& project_matrix) {
+void Cube::draw(Matrix& project_matrix) const {
     Vector3 projected_verticies[8] = {0};
     Vector2 projected_screen_verticies[8] = {0};
     
@@ -33,19 +33,27 @@ void Cube::draw(Matrix& project_matrix) {
 
     for(int i = 0; i < 36; i+=3) {
         // double draw to ommit clock wise triangle drawing
-        if(z_in_range(projected_verticies[triangles[i]].z) && z_in_range(projected_verticies[triangles[i+1]].z && z_in_range(projected_verticies[triangles[i+2]].z)))
-            DrawTriangle(projected_screen_verticies[triangles[i]], projected_screen_verticies[triangles[i+1]], projected_screen_verticies[triangles[i+2]], colors[i/3]);
-        if(z_in_range(projected_verticies[triangles[35-i]].z) && z_in_range(projected_verticies[triangles[35-i-1]].z && z_in_range(projected_verticies[triangles[35-i-2]].z)))
-            DrawTriangle(projected_screen_verticies[triangles[35-i]], projected_screen_verticies[triangles[35-i-1]], projected_screen_verticies[triangles[35-i-2]], colors[12-i/3]);
-        /* if(z_in_range(projected_verticies[i].z) && z_in_range(projected_verticies[(i+1) % 4].z)) */
-        /*     DrawLineV(projected_screen_verticies[i], projected_screen_verticies[(i+1) % 4], BLACK); */
+        if(z_in_range(projected_verticies[triangles[i]].z) && 
+            z_in_range(projected_verticies[triangles[i+1]].z &&
+                z_in_range(projected_verticies[triangles[i+2]].z)))
 
-        /* if(z_in_range(projected_verticies[i + 4].z) && z_in_range(projected_verticies[((i+1) % 4) + 4].z)) */
-        /*     DrawLineV(projected_screen_verticies[i + 4], projected_screen_verticies[((i+1) % 4) + 4], BLACK); */
-        
-        /* if(z_in_range(projected_verticies[i].z) && z_in_range(projected_verticies[i + 4].z)) */
-        /*     DrawLineV(projected_screen_verticies[i], projected_screen_verticies[i + 4], BLACK); */
+            DrawTriangle(
+                projected_screen_verticies[triangles[i]],
+                projected_screen_verticies[triangles[i+1]],
+                projected_screen_verticies[triangles[i+2]],
+                colors[i/3]
+            );
 
+        if(z_in_range(projected_verticies[triangles[35-i]].z) &&
+            z_in_range(projected_verticies[triangles[35-i-1]].z &&
+                z_in_range(projected_verticies[triangles[35-i-2]].z)))
+
+            DrawTriangle(
+                projected_screen_verticies[triangles[35-i]],
+                projected_screen_verticies[triangles[35-i-1]],
+                projected_screen_verticies[triangles[35-i-2]],
+                colors[12-i/3]
+            );
     }
 }
 
@@ -83,7 +91,7 @@ void Cube::set_triangles() {
     triangles[33] = 5; triangles[34] = 4; triangles[35] = 0;
 }
 
-std::vector<Triangle*> Cube::get_triangles() {
+std::vector<Triangle*> Cube::get_triangles() const {
     std::vector<Triangle*> return_triangles;
     for(int i = 0; i < 36; i += 3)
         return_triangles.push_back(
@@ -98,7 +106,7 @@ void Cube::set_colors() {
         colors[i] = get_random_color();
 }
 
-Vector3 Cube::get_center() {
+Vector3 Cube::get_center() const {
     return center;
 }
 

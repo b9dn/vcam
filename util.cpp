@@ -12,6 +12,66 @@ Vcam::Vcam(Vector3 camera_pos, Vector3 camera_up, Vector3 camera_target, Matrix 
     this->projection_matrix = projection_matrix;
 }
 
+void Vcam::move_forward() {
+    camera_pos = Vector3Add(camera_pos, Vector3Scale(Vector3Normalize(camera_target), 0.1));
+}
+
+void Vcam::move_backward() {
+    camera_pos = Vector3Subtract(camera_pos, Vector3Scale(Vector3Normalize(camera_target), 0.1));
+}
+
+void Vcam::move_left() {
+    camera_pos = Vector3Subtract(camera_pos, Vector3Scale(Vector3Normalize(camera_right), 0.1));
+}
+
+void Vcam::move_right() {
+    camera_pos = Vector3Add(camera_pos, Vector3Scale(Vector3Normalize(camera_right), 0.1));
+}
+
+void Vcam::move_up() {
+    camera_pos = Vector3Add(camera_pos, Vector3Scale((Vector3){0.0f, 1.0f, 0.0f}, 0.1f));
+}
+
+void Vcam::move_down() {
+    camera_pos = Vector3Subtract(camera_pos, Vector3Scale((Vector3){0.0f, 1.0f, 0.0f}, 0.1f));
+}
+
+void Vcam::rotate_up(Quaternion q) {
+    camera_up = Vector3RotateByQuaternion(camera_up, q);
+}
+
+void Vcam::rotate_right(Quaternion q) {
+    camera_right = Vector3RotateByQuaternion(camera_right, q);
+}
+
+void Vcam::rotate_target(Quaternion q) {
+    camera_target = Vector3RotateByQuaternion(camera_target, q);
+}
+
+void Vcam::set_projection_mat(Matrix projection_mat) {
+    this->projection_matrix = projection_mat;
+}
+
+Matrix Vcam::get_project_mat() const {
+    return projection_matrix;
+}
+
+Vector3 Vcam::get_up() const {
+    return camera_up;
+}
+
+Vector3 Vcam::get_target() const {
+    return camera_target;
+}
+
+Vector3 Vcam::get_right() const {
+    return camera_right;
+}
+
+Vector3 Vcam::get_pos() const {
+    return camera_pos;
+}
+
 Triangle::Triangle(Vector3 v1, Vector3 v2, Vector3 v3) {
     this->verticies[0] = v1;
     this->verticies[1] = v2;
@@ -30,7 +90,7 @@ Triangle::Triangle(Vector3 v1, Vector3 v2, Vector3 v3, Color color) {
 
 // does triangle plane cross given triangle
 // 1 if in front, 0 if they cross, -1 if behind
-int Triangle::plane_cross_triangle(Triangle* triangle) {
+int Triangle::plane_cross_triangle(Triangle* triangle) const {
     Vector4 plane = to_plane();
     float sign_p1 = point_in_plane_equasion(triangle->verticies[0], plane);
     float sign_p2 = point_in_plane_equasion(triangle->verticies[1], plane);
@@ -45,7 +105,7 @@ int Triangle::plane_cross_triangle(Triangle* triangle) {
     return 0;
 }
 
-Vector4 Triangle::to_plane() {
+Vector4 Triangle::to_plane() const {
     auto v1 = Vector3Subtract(verticies[0], verticies[1]);
     auto v2 = Vector3Subtract(verticies[0], verticies[2]);
     auto normal = Vector3CrossProduct(v1, v2);
@@ -65,7 +125,7 @@ void Triangle::multiply_by_matrix(Matrix& mat) {
         v = multiply_mv(mat, v);
 }
 
-void Triangle::draw(const Vcam& camera) {
+void Triangle::draw(const Vcam& camera) const {
     if(!this->visible)
         return;
 
@@ -73,7 +133,7 @@ void Triangle::draw(const Vcam& camera) {
     Vector2 projected_screen_verticies[3] = {0};
     
     for(int i = 0; i < 3; i++) {
-        projected_verticies[i] = multiply_mv(camera.projection_matrix, verticies[i]);
+        projected_verticies[i] = multiply_mv(camera.get_project_mat(), verticies[i]);
         projected_screen_verticies[i] = get_2d_screen_vec(projected_verticies[i]);
     }
 
@@ -82,6 +142,14 @@ void Triangle::draw(const Vcam& camera) {
         DrawTriangle(projected_screen_verticies[0], projected_screen_verticies[1], projected_screen_verticies[2], color);
     if(z_in_range(projected_verticies[2].z) && z_in_range(projected_verticies[1].z && z_in_range(projected_verticies[0].z)))
         DrawTriangle(projected_screen_verticies[2], projected_screen_verticies[1], projected_screen_verticies[0], color);
+}
+
+bool Triangle::is_visible() const {
+    return visible;
+}
+
+Triangle Triangle::copy() const {
+    return Triangle(verticies[0], verticies[1], verticies[2], color);
 }
 
 Vector3 multiply_mv(const Matrix &mat, const Vector3 &vec) {
@@ -100,7 +168,7 @@ Vector3 multiply_mv(const Matrix &mat, const Vector3 &vec) {
     return ret;
 }
 
-Vector2 get_2d_screen_vec(Vector3& vec) {
+Vector2 get_2d_screen_vec(const Vector3& vec) {
     return (Vector2){
         (vec.x/vec.z + 1.0f) * screenWidth/2.0f, 
         (vec.y/vec.z + 1.0f) * screenHeight/2.0f
@@ -121,7 +189,7 @@ Color get_random_color() {
     return (Color){rand_r, rand_g, rand_b, 255};
 }
 
-void print_matrix(Matrix mat) {
+void print_matrix(const Matrix& mat) {
     printf("%f %f %f %f\n", mat.m0, mat.m4, mat.m8, mat.m12);
     printf("%f %f %f %f\n", mat.m1, mat.m5, mat.m9, mat.m13);
     printf("%f %f %f %f\n", mat.m2, mat.m6, mat.m10, mat.m14);

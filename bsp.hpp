@@ -15,25 +15,25 @@ public:
 
     BSPNode(Triangle* triangle);
 
-    bool camera_in_front(const Vcam& camera);
+    bool camera_in_front(const Vcam& camera) const;
 };
 
 class BSPTree {
 private:
     BSPNode* root;
 
-    int line_intersection_with_plane(Vector3 p1, Vector3 p2, Vector4 plane, Vector3* out_point);
+    int line_intersection_with_plane(Vector3 p1, Vector3 p2, Vector4 plane, Vector3* out_point) const;
 
     // split triangle using plane
     void split(Triangle* t, Vector4 plane, std::vector<Triangle*>& triangles);
 
-    std::vector<Triangle*> find_front(Triangle* triangle, std::vector<Triangle*>& triangles);
+    std::vector<Triangle*> find_front(Triangle* triangle, std::vector<Triangle*>& triangles) const;
 
-    std::vector<Triangle*> find_behind(Triangle* triangle, std::vector<Triangle*>& triangles);
+    std::vector<Triangle*> find_behind(Triangle* triangle, std::vector<Triangle*>& triangles) const;
 
     void make_bsp_tree(BSPNode* node, std::vector<Triangle*>& triangles);
 
-    void draw(const Vcam& camera, BSPNode* node);
+    void draw(const Vcam& camera, BSPNode* node) const;
 
     void restore_triangles(std::vector<Triangle*>& triangles);
     
@@ -42,7 +42,7 @@ private:
 public:
     BSPTree(std::vector<Triangle*>& triangles);
 
-    void draw(Vcam camera);
+    void draw(Vcam camera) const;
 };
 
 #endif

@@ -15,12 +15,12 @@ BSPNode::BSPNode(Triangle* triangle) {
     this->triangle_normal = Vector3CrossProduct(v1, v2);
 }
 
-bool BSPNode::camera_in_front(const Vcam& camera) {
-    auto camera_vector = Vector3Subtract(camera.camera_pos, point_on_triangle);
+bool BSPNode::camera_in_front(const Vcam& camera) const {
+    auto camera_vector = Vector3Subtract(camera.get_pos(), point_on_triangle);
     return Vector3DotProduct(camera_vector, triangle_normal) > 0 ? true : false;
 }
 
-int BSPTree::line_intersection_with_plane(Vector3 p1, Vector3 p2, Vector4 plane, Vector3* out_point) {
+int BSPTree::line_intersection_with_plane(Vector3 p1, Vector3 p2, Vector4 plane, Vector3* out_point) const {
     float denominator = plane.x * (p2.x - p1.x) + 
                     plane.y * (p2.y - p1.y) + 
                     plane.z * (p2.z - p1.z);
@@ -39,11 +39,14 @@ int BSPTree::line_intersection_with_plane(Vector3 p1, Vector3 p2, Vector4 plane,
 }
 
 // split triangle using plane
-void BSPTree::split(Triangle* t, Vector4 plane, std::vector<Triangle*>& triangles) {
-    triangles.erase(std::remove(triangles.begin(), triangles.end(), t), triangles.end());
-    float sign_p1 = point_in_plane_equasion(t->verticies[0], plane);
-    float sign_p2 = point_in_plane_equasion(t->verticies[1], plane);
-    float sign_p3 = point_in_plane_equasion(t->verticies[2], plane);
+void BSPTree::split(Triangle* triangle, Vector4 plane, std::vector<Triangle*>& triangles) {
+    triangles.erase(std::remove(triangles.begin(), triangles.end(), triangle), triangles.end());
+    Triangle t = triangle->copy();
+    delete triangle;
+
+    float sign_p1 = point_in_plane_equasion(t.verticies[0], plane);
+    float sign_p2 = point_in_plane_equasion(t.verticies[1], plane);
+    float sign_p3 = point_in_plane_equasion(t.verticies[2], plane);
 
     Vector3 one_side;
     Vector3 other_side1;
@@ -53,47 +56,47 @@ void BSPTree::split(Triangle* t, Vector4 plane, std::vector<Triangle*>& triangle
 
     // split on 2 triangles
     if(sign_p1 == 0) {
-        if(line_intersection_with_plane(t->verticies[1], t->verticies[2], plane, &intersection1) < 0)
+        if(line_intersection_with_plane(t.verticies[1], t.verticies[2], plane, &intersection1) < 0)
             return;
-        Triangle* t1new = new Triangle(t->verticies[0], intersection1, t->verticies[1], t->color);
-        Triangle* t2new = new Triangle(t->verticies[0], intersection1, t->verticies[2], t->color);
+        Triangle* t1new = new Triangle(t.verticies[0], intersection1, t.verticies[1], t.color);
+        Triangle* t2new = new Triangle(t.verticies[0], intersection1, t.verticies[2], t.color);
         triangles.push_back(t1new);
         triangles.push_back(t2new);
         return;
     }
     if(sign_p2 == 0) {
-        if(line_intersection_with_plane(t->verticies[0], t->verticies[2], plane, &intersection1) < 0)
+        if(line_intersection_with_plane(t.verticies[0], t.verticies[2], plane, &intersection1) < 0)
             return;
-        Triangle* t1new = new Triangle(t->verticies[1], intersection1, t->verticies[0], t->color);
-        Triangle* t2new = new Triangle(t->verticies[1], intersection1, t->verticies[2], t->color);
+        Triangle* t1new = new Triangle(t.verticies[1], intersection1, t.verticies[0], t.color);
+        Triangle* t2new = new Triangle(t.verticies[1], intersection1, t.verticies[2], t.color);
         triangles.push_back(t1new);
         triangles.push_back(t2new);
         return;
     }
     if(sign_p3 == 0) {
-        if(line_intersection_with_plane(t->verticies[0], t->verticies[1], plane, &intersection1) < 0)
+        if(line_intersection_with_plane(t.verticies[0], t.verticies[1], plane, &intersection1) < 0)
             return;
-        Triangle* t1new = new Triangle(t->verticies[2], intersection1, t->verticies[0], t->color);
-        Triangle* t2new = new Triangle(t->verticies[2], intersection1, t->verticies[1], t->color);
+        Triangle* t1new = new Triangle(t.verticies[2], intersection1, t.verticies[0], t.color);
+        Triangle* t2new = new Triangle(t.verticies[2], intersection1, t.verticies[1], t.color);
         triangles.push_back(t1new);
         triangles.push_back(t2new);
         return;
     }
     // split on 3 triangles
     else if((sign_p1 > 0 && sign_p2 > 0) || (sign_p1 < 0 && sign_p2 < 0)) {
-        one_side = t->verticies[2];
-        other_side1 = t->verticies[0];
-        other_side2 = t->verticies[1];
+        one_side = t.verticies[2];
+        other_side1 = t.verticies[0];
+        other_side2 = t.verticies[1];
     }
     else if((sign_p2 > 0 && sign_p3 > 0) || (sign_p2 < 0 && sign_p3 < 0)) {
-        one_side = t->verticies[0];
-        other_side1 = t->verticies[1];
-        other_side2 = t->verticies[2];
+        one_side = t.verticies[0];
+        other_side1 = t.verticies[1];
+        other_side2 = t.verticies[2];
     }
     else {
-        one_side = t->verticies[1];
-        other_side1 = t->verticies[0];
-        other_side2 = t->verticies[2];
+        one_side = t.verticies[1];
+        other_side1 = t.verticies[0];
+        other_side2 = t.verticies[2];
     }
 
     if(line_intersection_with_plane(one_side, other_side1, plane, &intersection1))
@@ -101,16 +104,16 @@ void BSPTree::split(Triangle* t, Vector4 plane, std::vector<Triangle*>& triangle
     if(line_intersection_with_plane(one_side, other_side2, plane, &intersection2))
         return;
     
-    Triangle* t1new = new Triangle(one_side, intersection1, intersection2, t->color);
-    Triangle* t2new = new Triangle(other_side1, intersection1, intersection2, t->color);
-    Triangle* t3new = new Triangle(intersection2, other_side1, other_side2, t->color);
+    Triangle* t1new = new Triangle(one_side, intersection1, intersection2, t.color);
+    Triangle* t2new = new Triangle(other_side1, intersection1, intersection2, t.color);
+    Triangle* t3new = new Triangle(intersection2, other_side1, other_side2, t.color);
 
     triangles.push_back(t1new);
     triangles.push_back(t2new);
     triangles.push_back(t3new);
 }
 
-std::vector<Triangle*> BSPTree::find_front(Triangle* triangle, std::vector<Triangle*>& triangles) {
+std::vector<Triangle*> BSPTree::find_front(Triangle* triangle, std::vector<Triangle*>& triangles) const {
     std::vector<Triangle*> front_triangles;
     for(const auto& t : triangles) {
         auto test_result = triangle->plane_cross_triangle(t);
@@ -121,7 +124,7 @@ std::vector<Triangle*> BSPTree::find_front(Triangle* triangle, std::vector<Trian
     return front_triangles;
 }
 
-std::vector<Triangle*> BSPTree::find_behind(Triangle* triangle, std::vector<Triangle*>& triangles) {
+std::vector<Triangle*> BSPTree::find_behind(Triangle* triangle, std::vector<Triangle*>& triangles) const {
     std::vector<Triangle*> behind_triangles;
     for(const auto& t : triangles) {
         auto test_result = triangle->plane_cross_triangle(t);
@@ -164,7 +167,7 @@ void BSPTree::make_bsp_tree(BSPNode* node, std::vector<Triangle*>& triangles) {
     make_bsp_tree(node->front, front_triangles);
 }
 
-void BSPTree::draw(const Vcam& camera, BSPNode* node) {
+void BSPTree::draw(const Vcam& camera, BSPNode* node) const {
     if(node == NULL)
         return;
 
@@ -204,6 +207,6 @@ BSPTree::BSPTree(std::vector<Triangle*>& triangles) {
     restore_triangles(triangles);
 }
 
-void BSPTree::draw(Vcam camera) {
+void BSPTree::draw(Vcam camera) const {
     draw(camera, root);
 }
