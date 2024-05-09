@@ -46,7 +46,9 @@ std::vector<Cube> init_cubes() {
 
 std::vector<Triangle*> init_triangles() {
     return std::vector<Triangle*> {
-        /* new Triangle({0.0f, 0.0f, -5.0f}, {10.0f, 10.0f, -10.0f}, {10.0f, 0.0f, -30.0f}, RED), */
+        new Triangle({10.0f, -4.0f, -5.0f}, {10.0f, -4.0f, 5.0f}, {10.0f, 4.0f, -1.0f}),
+        new Triangle({15.0f, 3.0f, -5.0f}, {15.0f, 3.0f, 5.0f}, {7.0f, -2.0f, 0.0f}),
+        new Triangle({6.0f, -10.0f, 0.5f}, {15.0f, 15.0f, 3.0f}, {15.0f, 3.0f, 0.5f}),
     };
 }
 
