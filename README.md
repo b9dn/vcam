@@ -1,4 +1,4 @@
-## Virtual Camera Project in Raylib-CPP
+## Virtual Camera
 
 This project was created using Raylib with the main goal to manually implement a virtual camera pre-built solutions. The focus is on creating basic functionalities from scratch to understand how it works.
 
